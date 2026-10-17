@@ -1,7 +1,4 @@
-
-
 // GESTION DU THEME AVEC BOUTON A DROITE
-//const themeToggleBtn = document.getElementById('theme-toggle');
 
 // 1. Sélection du bouton
 const themeToggleBtn = document.getElementById('theme-toggle');
@@ -49,6 +46,16 @@ systemPrefersDark.addEventListener('change', (e) => {
 // Clé de stockage dans localStorage
 const STORAGE_KEY_CART = 'super_cap_cart';
 
+// Déclaration de l'état (placé en haut pour être accessible partout)
+const filters = document.forms.categories;
+
+const state = {
+    cart: new Map(),
+    categories: new Set(
+        filters ? Array.from(filters.elements.category || []).map(input => input.value) : []
+    )
+};
+
 // Sélection des éléments du DOM
 const addButtons = document.querySelectorAll("[data-add]");
 const clearBtn = document.getElementById("clear-cart-btn") || document.querySelector("[data-clear]");
@@ -67,76 +74,62 @@ if (clearBtn) {
     });
 }
 
-if (filterForm) {
-    filterForm.addEventListener('submit', e => {
+// Écouteur unique sur la soumission du formulaire de filtres
+if (filters) {
+    filters.addEventListener('submit', e => {
         e.preventDefault();
-        applyFilters();
+        renderCatalogue();
     });
-}
 
+    if (filters.elements.category) {
+        filters.elements.category.forEach(input => input.addEventListener('change', applyFilters));
+    }
+}
 
 // Sauvegarde le panier dans le localStorage
 function saveCart() {
-    // Transformation du Map en tableau pour la sérialisation JSON
     const cartEntries = Array.from(state.cart.entries());
     localStorage.setItem(STORAGE_KEY_CART, JSON.stringify(cartEntries));
 }
 
-
-const filters = document.forms.categories;
-
-const state = {
-    cart: new Map(),
-    // On extrait la valeur (.value) de chaque input
-    categories: new Set(
-        Array.from(filters.elements.category || []).map(input => input.value)
-    )
-};
-
-filters.addEventListener('submit', e => {
-    e.preventDefault(); // Annule le rechargement de la page
-    
-});
-
-
-// Récupérer l'élément Html du formulaire
-filters.addEventListener('submit', e=> {
-    e.preventDefault(
-        renderCatalogue ()
-    )
-})
-
-filters.elements.category.forEach(input => input.addEventListener('change', applyFilters));
-
-//
+// Gestion des filtres et cases à cocher
 function applyFilters(e) {
-    if(e.target.value === 'all') {
-        if (e.target.checked) {
-          filters.elements.category.forEach(input => input.checked = true);  
+    if (e && e.target) {
+        if (e.target.value === 'all') {
+            if (e.target.checked) {
+                filters.elements.category.forEach(input => input.checked = true);   
+            } else {
+                filters.elements.category.forEach(input => input.checked = false);
+            } 
         } else {
-            filters.elements.category.forEach(input = input.ckecked = falsel)
-        } 
-    } else {
-        filters.elements.category[0].checked = false
-    }
-    if (Array.from(filters.elements.category).filter(boxe => boxe.checked).length === filters.elements.category.length -1)
-        filters.elements.category.forEach(input => input.checked = true)
-    }
-    state.categories = new Set (
-        [...filters.elements.category]
-        .filter(c => c.checke)
-        .map(c => c.value)
-    )
-    
-
-function renderCatalogue {
-
-    const articles = document.querySelectorAll ('.product-list li');
-    articles.forEach(a => {
-        if (!state.categories.has(a.firstElementChild.dataset.category)) {
-            a.hidden = true
+            filters.elements.category[0].checked = false;
         }
-    })
+    }
+
+    const checkedBoxes = Array.from(filters.elements.category).filter(boxe => boxe.checked);
+    if (checkedBoxes.length === filters.elements.category.length - 1) {
+        filters.elements.category.forEach(input => input.checked = true);
+    }
+
+    state.categories = new Set(
+        Array.from(filters.elements.category)
+            .filter(c => c.checked)
+            .map(c => c.value)
+    );
+
+    renderCatalogue();
+}
+
+function renderCatalogue() {
+    const articles = document.querySelectorAll('.product-list li');
+    articles.forEach(a => {
+        const articleTag = a.querySelector('article');
+        if (articleTag && !state.categories.has(articleTag.dataset.category)) {
+            a.hidden = true;
+        } else {
+            a.hidden = false;
+        }
+    });
 } 
 
 // Charge le panier depuis le localStorage au démarrage
@@ -145,7 +138,6 @@ function loadCart() {
     if (savedCart) {
         try {
             const parsedEntries = JSON.parse(savedCart);
-            // Reconstitution du Map à partir des données parsées
             state.cart = new Map(parsedEntries);
         } catch (e) {
             console.error("Erreur lors du chargement du panier depuis localStorage :", e);
@@ -153,7 +145,6 @@ function loadCart() {
         }
     }
 }
-
 
 // Ajoute un article ou augmente sa quantité dans le panier
 function addToCart(id, qty = 1) {
@@ -171,31 +162,10 @@ function addToCart(id, qty = 1) {
     saveCart();
     renderCart();
 
-    // Fait défiler l'écran de manière fluide vers la section panier
     const cartSection = document.getElementById('cart');
     if (cartSection) {
         cartSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-}
-
-// Filtre le catalogue en fonction des catégories cochées
-function applyFilters() {
-    const checkedCategories = Array.from(
-        filterForm.querySelectorAll('input[name="category"]:checked')
-    ).map(input => input.value.toLowerCase());
-
-    const products = document.querySelectorAll('#catalogue .product-list > li');
-
-    products.forEach(li => {
-        const article = li.querySelector('article');
-        const category = article.dataset.category.toLowerCase();
-
-        if (checkedCategories.includes('all') || checkedCategories.includes(category)) {
-            li.style.display = "";
-        } else {
-            li.style.display = "none";
-        }
-    });
 }
 
 // Met à jour l'affichage de l'interface du panier
@@ -205,7 +175,6 @@ function renderCart() {
     const emptyMsg = document.querySelector('[data-cart-empty]');
     const list = document.querySelector('[data-cart-items]');
 
-    // Calcul du nombre total d'articles et du prix total
     const { count, total } = Array.from(state.cart.values()).reduce((acc, item) => ({
         count: acc.count + item.qty,
         total: acc.total + (item.price * item.qty)
@@ -214,7 +183,6 @@ function renderCart() {
     if (cartCount) cartCount.textContent = count;
     if (cartPrice) cartPrice.textContent = total.toFixed(2);
 
-    // Visibilité du message "Panier vide" et du bouton "Vider"
     if (emptyMsg && clearBtn) {
         if (count > 0) {
             emptyMsg.style.display = "none";
